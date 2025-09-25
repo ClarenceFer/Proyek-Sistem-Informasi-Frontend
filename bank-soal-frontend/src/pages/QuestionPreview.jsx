@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import axios from 'axios';
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = "https://sibakso-backend-production.up.railway.app/api";
 
 // PDF Viewer Component
 const PDFViewer = ({ fileId }) => {

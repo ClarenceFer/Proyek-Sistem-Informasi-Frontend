@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Menggunakan Axios untuk permintaan HTTP
 import AuthService from '../../services/auth.service'; // Assuming this path is correct
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = "https://sibakso-backend-production.up.railway.app/api";
 
 // Updated Services to work with real database API using axios
 const CourseService = {
