@@ -2,7 +2,7 @@ import axios from "axios";
 import authHeader from "./auth-header";
 
 // gunakan URL dari environment variable
-const API_URL = `${process.env.VITE_API_URL}/api/`;
+const API_URL = `${import.meta.env.VITE_API_URL}/api/`;
 
 class MaterialTagService {
   // Get all material tags
