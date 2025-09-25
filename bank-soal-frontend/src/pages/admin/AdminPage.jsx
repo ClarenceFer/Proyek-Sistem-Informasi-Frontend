@@ -4,8 +4,7 @@ import axios from 'axios';
 import { Search, Plus, Edit, Trash2, User, Mail, X, LogOut, Save, AlertCircle, CheckCircle, Users, UserCheck, Filter } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthService from '../../services/auth.service'; // Pastikan path ini benar
-import LogoUnpar from "../assets/LogoUnpar.png";
-import LogoIF from "../assets/LogoIF.jpg";
+import LogoIF from "../../assets/LogoIF.jpg";
 
 // URL dasar untuk API dosen Anda
 const API_URL = 'https://sibakso-backend-production.up.railway.app/api/admin/'; // Pastikan port dan path ini benar
