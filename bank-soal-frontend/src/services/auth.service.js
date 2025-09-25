@@ -1,6 +1,8 @@
 import axios from "axios";
 
+console.log("NEXT_PUBLIC_API_URL =", process.env.NEXT_PUBLIC_API_URL);
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/`;
+console.log("Full API URL for signin:", API_URL + "signin");
 
 class AuthService {
   login(email, password) {
