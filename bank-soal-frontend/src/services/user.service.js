@@ -2,7 +2,7 @@ import axios from "axios";
 import authHeader from "./auth-header";
 
 // gunakan URL dari environment variable
-const API_URL = `${process.env.API_URL}/api/`;
+const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/`;
 
 class UserService {
   // Admin functions
