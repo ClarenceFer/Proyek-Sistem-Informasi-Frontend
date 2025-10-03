@@ -206,7 +206,7 @@ const AdminPage = ({ currentUser }) => {
               className="h-10 w-auto"
             />
           </div>
-          
+
           <nav className="flex justify-center space-x-8">
             <Link to="/admin/dosen" className="text-blue-600 font-semibold relative px-2 py-1">
               Dosen
@@ -220,10 +220,10 @@ const AdminPage = ({ currentUser }) => {
             </Link>
             <Link to="/admin/course-tagging" className="text-gray-600 hover:text-gray-900 transition-colors font-medium px-2 py-1">
               Tagging Mata Kuliah
-        
+
             </Link>
           </nav>
-            
+
           <div className="flex items-center justify-end space-x-4">
             <span className="text-gray-700 font-medium">{currentUser?.username || 'Admin'}</span>
             <div className="flex items-center space-x-2">
@@ -243,7 +243,7 @@ const AdminPage = ({ currentUser }) => {
       </div>
     </header>
   );
-  
+
 
   // Komponen Stats Cards
   const StatsCards = () => (
