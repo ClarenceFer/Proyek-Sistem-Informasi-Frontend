@@ -298,7 +298,7 @@ const FormCreatorPage = ({ currentUser }) => {
             try {
                 setIsLoadingDropdowns(true);
                 
-                const response = await fetch("http://localhost:8080/api/dropdown/all-dropdown-data");
+                const response = await fetch("https://sibasotest-production.up.railway.app/api/dropdown/all-dropdown-data");
                 const data = await response.json();
                 
                 if (data.success) {
@@ -333,7 +333,7 @@ const FormCreatorPage = ({ currentUser }) => {
     useEffect(() => {
         const fetchQuestions = async () => {
             try {
-                const response = await fetch("http://localhost:8080/api/questionSets");
+                const response = await fetch("https://sibasotest-production.up.railway.app/api/questionSets");
                 const data = await response.json();
                 console.log("Questions data dari backend:", data);
                 setQuestions(data);
@@ -490,7 +490,7 @@ const FormCreatorPage = ({ currentUser }) => {
             ? "Form_Tanpa_Judul" 
             : formTitle.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
 
-        const url = `http://localhost:8080/api/files/download-bundle?ids=${questionSetIds}&formTitle=${cleanFormTitle}`;
+        const url = `https://sibasotest-production.up.railway.app/api/files/download-bundle?ids=${questionSetIds}&formTitle=${cleanFormTitle}`;
         
         window.location.href = url;
 
@@ -522,7 +522,7 @@ const FormCreatorPage = ({ currentUser }) => {
                 const token = localStorage.getItem("token");
                 console.log("Token:", token);
 
-                const response = await fetch("http://localhost:8080/api/course-tags", {
+                const response = await fetch("https://sibasotest-production.up.railway.app/api/course-tags", {
                     headers: {
                         "x-access-token": token,
                     },
@@ -570,7 +570,7 @@ const FormCreatorPage = ({ currentUser }) => {
     
             console.log("Payload dikirim ke backend:", payload);
     
-            const response = await fetch("http://localhost:8080/api/question-packages", {
+            const response = await fetch("https://sibasotest-production.up.railway.app/api/question-packages", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
