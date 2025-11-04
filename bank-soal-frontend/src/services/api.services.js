@@ -1,7 +1,7 @@
 import axios from "axios";
 import AuthService from "./auth.service";
 
-const API_BASE_URL = "http://sibasotest-production.up.railway.app/api";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/`;
 
 // Create axios instance
 const api = axios.create({
