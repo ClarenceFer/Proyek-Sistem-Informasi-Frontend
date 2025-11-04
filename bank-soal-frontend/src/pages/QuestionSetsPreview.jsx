@@ -18,7 +18,7 @@ import {
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-const API_URL = "http://sibasotest-production.up.railway.app/api";
+const API_URL = "https://sibasotest-production.up.railway.app/api";
 
 const QuestionSetsPreview = ({ currentUser }) => {
   const { id: packageId } = useParams();

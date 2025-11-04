@@ -8,7 +8,7 @@ import Header from '../components/Header';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
 
-const API_URL = "http://sibasotest-production.up.railway.app/api";
+const API_URL = "https://sibasotest-production.up.railway.app/api";
 
 const handleDownloadTemplate = async () => {
   try {
