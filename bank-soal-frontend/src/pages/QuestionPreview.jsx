@@ -800,7 +800,7 @@ const QuestionPreview = ({ currentUser }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="flex items-center text-gray-700">
               <BookOpen size={18} className="mr-2" />
-              <span>{questionSet.lecturer}</span>
+              <span>{questionSet.updateBy}</span>
             </div>
             <div className="flex items-center text-gray-700">
               <span className="font-medium mr-2">Tingkat Kesulitan:</span>
