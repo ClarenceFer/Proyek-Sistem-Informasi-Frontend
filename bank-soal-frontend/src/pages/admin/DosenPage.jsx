@@ -165,10 +165,10 @@ const Header = () => (
       <div className="grid grid-cols-3 items-center">
         <div className="flex items-center space-x-3">
           <img
-            src="/src/assets/LogoIF.jpg"
-            alt="Logo Informatika UNPAR"
-            className="h-10 w-auto"
-          />
+              src={LogoIF}
+              alt="Logo IF"
+              className="h-10 w-auto rounded"
+            />
         </div>
         
         <nav className="flex justify-center space-x-8">
