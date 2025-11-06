@@ -30,7 +30,7 @@ const handleDownloadTemplate = async () => {
 const UploadPage = ({ currentUser }) => {
   const [files, setFiles] = useState({
     questions: null,
-    answers: [],
+    answers: null,
     testCases: null
   });
 
@@ -57,7 +57,7 @@ const UploadPage = ({ currentUser }) => {
   const [filteredMaterialTags, setFilteredMaterialTags] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
-
+  
   // States for searchable dropdown
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
@@ -87,7 +87,7 @@ const UploadPage = ({ currentUser }) => {
 
         setCourseTags(courseTagsResponse.data || []);
         setFilteredCourseTags(courseTagsResponse.data || []);
-
+        
         // Set lecturer to current user's username
         setMetadata(prev => ({
           ...prev,
@@ -125,29 +125,29 @@ const UploadPage = ({ currentUser }) => {
         'x-access-token': token,
         'Content-Type': 'application/json'
       };
-
+      
       console.log('Fetching materials for course:', courseId);
-
+      
       // Updated endpoint to match your routes
       const response = await axios.get(`${API_URL}/course-material-assignments/course/${courseId}/materials-for-upload`, {
         headers
       });
-
+      
       console.log('Materials response:', response.data);
-
+      
       // Your API returns {success: true, data: [...]}
       const materials = response.data.success ? response.data.data : [];
       setFilteredMaterialTags(materials);
-
+      
       // Reset selected topics when course changes
       setMetadata(prev => ({
         ...prev,
         topics: []
       }));
-
+      
     } catch (error) {
       console.error('Error fetching course materials:', error);
-
+      
       if (error.response?.status === 404) {
         // No materials found for this course
         setFilteredMaterialTags([]);
@@ -156,7 +156,7 @@ const UploadPage = ({ currentUser }) => {
       } else {
         setError("Gagal memuat materi untuk mata kuliah ini.");
       }
-
+      
       setFilteredMaterialTags([]);
     } finally {
       setLoadingMaterials(false);
@@ -176,42 +176,32 @@ const UploadPage = ({ currentUser }) => {
   }, [courseSearchTerm, courseTags]);
 
   const handleFileChange = (e, type) => {
-    let selectedFiles = e.target.files;
-
-    // Format file tambahan
-    const validTypes = ['.pdf', '.docx', '.txt', '.java', '.py', '.cpp', '.js'];
-
-    if (type === "answers") {
-      const filesArray = Array.from(selectedFiles);
-
-      // ✅ Validasi semua file
-      for (let file of filesArray) {
-        const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-        if (!validTypes.includes(ext)) {
-          setError(`Format file ${ext} tidak didukung!`);
-          return;
-        }
-      }
-
-      // ✅ Tambahkan file ke array answers
-      setFiles(prev => ({
-        ...prev,
-        answers: [...prev.answers, ...filesArray],
-      }));
-
-      setUploadStatus(prev => ({ ...prev, answers: 'ready' }));
-    } else {
-      // Untuk questions & testCases tetap 1 file
-      const file = selectedFiles[0];
-      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-
-      if (!validTypes.includes(ext)) {
-        setError(`Format file ${ext} tidak didukung`);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      // Validasi tipe file
+      const validTypes = ['.pdf', '.docx', '.txt'];
+      const fileExt = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase();
+      
+      if (!validTypes.includes(fileExt)) {
+        setUploadStatus(prev => ({
+          ...prev,
+          [type]: 'error'
+        }));
+        setError(`Format file ${fileExt} tidak didukung. Gunakan PDF, DOCX, atau TXT.`);
         return;
       }
-
-      setFiles(prev => ({ ...prev, [type]: file }));
-      setUploadStatus(prev => ({ ...prev, [type]: 'ready' }));
+      
+      setFiles(prev => ({
+        ...prev,
+        [type]: selectedFile
+      }));
+      
+      setUploadStatus(prev => ({
+        ...prev,
+        [type]: 'ready'
+      }));
+      
+      setError(null);
     }
   };
 
@@ -233,7 +223,7 @@ const UploadPage = ({ currentUser }) => {
       selectedCourseId: null // Reset course ID when typing
     }));
     setShowCourseDropdown(true);
-
+    
     // Clear materials when searching
     setFilteredMaterialTags([]);
   };
@@ -247,7 +237,7 @@ const UploadPage = ({ currentUser }) => {
     }));
     setCourseSearchTerm(courseName);
     setShowCourseDropdown(false);
-
+    
     // Fetch materials for selected course
     if (courseId) {
       fetchMaterialTagsByCourse(courseId);
@@ -288,7 +278,7 @@ const UploadPage = ({ currentUser }) => {
     setMetadata(prev => {
       const currentTopics = prev.topics || [];
       const topicExists = currentTopics.some(topic => topic.id === tagId);
-
+      
       if (topicExists) {
         // Remove topic if already selected
         return {
@@ -307,31 +297,31 @@ const UploadPage = ({ currentUser }) => {
 
   const handleSubmit = async () => {
     // Validasi input
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({top:0,behavior: "smooth"});
     if (!files.questions) {
       // window.scrollTo({top:0,behavior: "smooth"});
       setError("Silakan upload file soal terlebih dahulu!");
       return;
     }
-
+    
     if (!metadata.title || !metadata.subject || !metadata.difficulty) {
       setError("Judul, mata kuliah, dan tingkat kesulitan harus diisi!");
       return;
     }
-
+    
     // Validasi token
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || !user.accessToken) {
       setError("Anda belum login atau sesi telah berakhir. Silakan login kembali.");
       return;
     }
-
+    
     const token = user.accessToken;
-
+    
     setLoading(true);
     setError(null);
     setSuccess(null);
-
+    
     try {
       // 1. Buat question set baru
       const questionSetResponse = await axios.post(
@@ -353,57 +343,47 @@ const UploadPage = ({ currentUser }) => {
           }
         }
       );
-
+      
       const questionSetId = questionSetResponse.data.questionSet.id;
-
+      
       // 2. Upload files
       const uploadPromises = [];
-
-      for (const [category, fileData] of Object.entries(files)) {
-        if (category === "answers") {
-          for (let file of fileData) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('questionSetId', questionSetId);
-            formData.append('fileCategory', category);
-
-            uploadPromises.push(
-              axios.post(`${API_URL}/files/upload`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data', 'x-access-token': token }
-              })
-            );
-          }
-        } else if (fileData) {
+      
+      for (const [category, file] of Object.entries(files)) {
+        if (file) {
           const formData = new FormData();
-          formData.append('file', fileData);
+          formData.append('file', file);
           formData.append('questionSetId', questionSetId);
           formData.append('fileCategory', category);
-
+          
           uploadPromises.push(
             axios.post(`${API_URL}/files/upload`, formData, {
-              headers: { 'Content-Type': 'multipart/form-data', 'x-access-token': token }
+              headers: {
+                'Content-Type': 'multipart/form-data',
+                'x-access-token': token
+              }
             })
           );
         }
       }
-
+      
       await Promise.all(uploadPromises);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({top:0,behavior: "smooth"});
       setSuccess("Soal berhasil diupload!");
-
+      
       // Reset form
       setFiles({
         questions: null,
         answers: null,
         testCases: null
       });
-
+      
       setUploadStatus({
         questions: null,
         answers: null,
         testCases: null
       });
-
+      
       setMetadata({
         title: '',
         subject: '',
@@ -414,10 +394,10 @@ const UploadPage = ({ currentUser }) => {
         year: new Date().getFullYear(),
         lecturer: currentUser?.username || user.username || ''
       });
-
+      
       setFilteredMaterialTags([]);
       setCourseSearchTerm('');
-
+      
     } catch (error) {
       console.error("Upload error:", error);
       if (error.response?.status === 403) {
@@ -434,23 +414,23 @@ const UploadPage = ({ currentUser }) => {
   const renderFileInput = (type, label, description, icon) => {
     const IconComponent = icon;
     const status = uploadStatus[type];
-
+    
     return (
       <div className="mb-6">
         <div
-          className={`relative border-2 border-dashed rounded-xl p-6 transition-all ${status === 'ready' ? 'border-blue-400 bg-blue-50' :
+          className={`relative border-2 border-dashed rounded-xl p-6 transition-all ${
+            status === 'ready' ? 'border-blue-400 bg-blue-50' :
             status === 'error' ? 'border-red-400 bg-red-50' :
-              'border-gray-300 hover:border-blue-400'
-            }`}
+            'border-gray-300 hover:border-blue-400'
+          }`}
         >
           <input
-          type="file"
-          multiple={type === "answers"}
-          id={`file-${type}`}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          onChange={(e) => handleFileChange(e, type)}
-          accept=".pdf,.docx,.txt,.java,.py,.cpp,.js"
-        />
+            type="file"
+            id={`file-${type}`}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            onChange={(e) => handleFileChange(e, type)}
+            accept=".pdf,.docx,.txt"
+          />
           <div className="flex items-center gap-4">
             {status === 'ready' ? (
               <CheckCircle className="w-8 h-8 text-blue-500" />
@@ -532,7 +512,7 @@ const UploadPage = ({ currentUser }) => {
               <h2 className="text-2xl font-semibold mb-6 text-gray-900">Upload Files</h2>
 
               {renderFileInput('questions', 'Upload Soal', 'Format: PDF, DOCX, atau TXT', Upload)}
-              {renderFileInput('answers', 'Upload Kunci Jawaban', 'Bisa lebih dari 1 file (PDF, DOCX, TXT, JAVA)', File)}
+              {renderFileInput('answers', 'Upload Kunci Jawaban', 'Format: PDF, DOCX, atau TXT', File)}
               {renderFileInput('testCases', 'Upload Test Cases', 'Format: PDF, DOCX, atau TXT', AlertCircle)}
             </div>
 
@@ -598,7 +578,7 @@ const UploadPage = ({ currentUser }) => {
                     )}
                     <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showCourseDropdown ? 'rotate-180' : ''}`} />
                   </div>
-
+                  
                   {/* Dropdown List */}
                   {showCourseDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -665,7 +645,7 @@ const UploadPage = ({ currentUser }) => {
                       </span>
                     ))}
                   </div>
-
+                  
                   {/* Available Topics */}
                   <div className="border-t border-gray-200 pt-3">
                     {!metadata.selectedCourseId ? (
@@ -723,7 +703,7 @@ const UploadPage = ({ currentUser }) => {
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Tingkat Kesulitan</label>
-                <select
+                <select 
                   name="difficulty"
                   value={metadata.difficulty}
                   onChange={handleInputChange}
