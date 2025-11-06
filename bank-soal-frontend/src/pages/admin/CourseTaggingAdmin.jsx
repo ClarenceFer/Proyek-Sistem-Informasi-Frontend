@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import LogoIF from '../../assets/LogoIF.jpg';
 import axios from 'axios';
 import AuthService from '../../services/auth.service';
-import LogoIF from "../assets/LogoIF.jpg";
 
 const API_URL = "https://sibasotest-production.up.railway.app/api";
 
