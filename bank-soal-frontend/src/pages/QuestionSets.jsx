@@ -1264,7 +1264,6 @@ Universitas Katolik Parahyangan
       </div>
 
       {/* Modal Konfirmasi Delete */}
-      {/* Modal Konfirmasi Delete */}
       {deleteModal.show && (
         <motion.div
           initial={{ opacity: 0 }}
