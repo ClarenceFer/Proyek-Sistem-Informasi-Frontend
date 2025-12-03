@@ -25,4 +25,4 @@ class CourseTagService {
   }
 }
 
-export default new CourseTagService();
+export default new CourseTagService(); 

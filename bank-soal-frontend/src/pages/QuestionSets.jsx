@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Download, User, Clock, Tag, Calendar, ArrowUpDown, X, CheckCircle, ChevronDown, FileText, BarChart2, Plus, Book, Check, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, Filter, Download, User, Clock, Tag, Calendar, ArrowUpDown, X, CheckCircle, ChevronDown, FileText, BarChart2, Plus, Book, Check, Trash2, AlertTriangle, Info, CheckCircle2, XCircle } from 'lucide-react';
 import Footer from '../components/Footer';
 import Header from '../components/Header';
 import { Link } from 'react-router-dom';
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 
-const API_URL = "https://sibasotest-production.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
 
 const QuestionSetsPage = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState('semua');
@@ -19,7 +17,7 @@ const QuestionSetsPage = ({ currentUser }) => {
   const [viewMode, setViewMode] = useState('grid');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-
+  
   // State untuk dropdown
   const [showLevelDropdown, setShowLevelDropdown] = useState(false);
   const [showCourseTagDropdown, setShowCourseTagDropdown] = useState(false);
@@ -48,14 +46,21 @@ const QuestionSetsPage = ({ currentUser }) => {
   const [deleteModal, setDeleteModal] = useState({ show: false, packageId: null, packageTitle: '' });
   const [deleting, setDeleting] = useState(false);
 
+  // State untuk overlay notification
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'info' // 'success', 'error', 'warning', 'info'
+  });
+
   // Helper function to get auth token
   const getAuthToken = () => {
     let token = localStorage.getItem('token') || sessionStorage.getItem('token');
-
+    
     if (!token && currentUser?.accessToken) {
       token = currentUser.accessToken;
     }
-
+    
     if (!token) {
       const userStr = localStorage.getItem('user');
       if (userStr) {
@@ -67,8 +72,23 @@ const QuestionSetsPage = ({ currentUser }) => {
         }
       }
     }
-
+    
     return token;
+  };
+
+  // Helper function to show notification overlay
+  const showNotification = (message, type = 'info') => {
+    setNotification({
+      show: true,
+      message: message,
+      type: type
+    });
+    
+    // Auto hide after 5 seconds for success/info, 7 seconds for error/warning
+    const duration = (type === 'error' || type === 'warning') ? 7000 : 5000;
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, duration);
   };
 
   // Fungsi untuk membuka modal konfirmasi delete
@@ -91,7 +111,7 @@ const QuestionSetsPage = ({ currentUser }) => {
       const token = getAuthToken();
       const res = await fetch(`${API_URL}/question-packages/${deleteModal.packageId}`, {
         method: 'DELETE',
-        headers: {
+        headers: { 
           "x-access-token": token,
           "Content-Type": "application/json"
         },
@@ -106,13 +126,13 @@ const QuestionSetsPage = ({ currentUser }) => {
       setPackages(prev => prev.filter(pkg => pkg.id !== deleteModal.packageId));
 
       closeDeleteModal();
-
+      
       // Tampilkan notifikasi sukses
-      alert('Paket soal berhasil dihapus!');
+      showNotification('Paket soal berhasil dihapus!', 'success');
 
     } catch (err) {
       console.error("❌ Error deleting package:", err);
-      alert(err.message || 'Gagal menghapus paket soal. Silakan coba lagi.');
+      showNotification(err.message || 'Gagal menghapus paket soal. Silakan coba lagi.', 'error');
     } finally {
       setDeleting(false);
     }
@@ -121,12 +141,12 @@ const QuestionSetsPage = ({ currentUser }) => {
   // Cek apakah user bisa delete (pembuat atau admin)
   const canDelete = (packageCreatorId) => {
     return currentUser && (
-      currentUser.id === packageCreatorId ||
+      currentUser.id === packageCreatorId || 
       currentUser.role === 'ROLE_ADMIN'
     );
   };
 
-  // Function untuk download paket soal sebagai ZIP
+  // Function untuk download paket soal sebagai ZIP - menggunakan logika sama seperti Create.jsx
   const handleDownloadPackage = async (packageId, packageTitle) => {
     if (downloadingItems.has(packageId)) {
       return; // Prevent multiple downloads
@@ -134,217 +154,102 @@ const QuestionSetsPage = ({ currentUser }) => {
 
     try {
       setDownloadingItems(prev => new Set(prev).add(packageId));
-
+      
       console.log(`🔄 Starting package download for ID: ${packageId}`);
-
+      
       // Get package details with all question sets
       const response = await axios.get(`${API_URL}/question-packages/${packageId}`);
       const packageData = response.data;
-
+      
       if (!packageData.items || packageData.items.length === 0) {
-        alert('Paket soal kosong atau tidak memiliki soal');
+        showNotification('Paket soal kosong atau tidak memiliki soal', 'warning');
+        setDownloadingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(packageId);
+          return newSet;
+        });
         return;
       }
-
+      
       console.log(`📁 Found ${packageData.items.length} question sets to process`);
-
-      // Create a new ZIP instance
-      const zip = new JSZip();
-
-      // Create main folder for the package
-      const packageFolder = zip.folder(packageTitle.replace(/[<>:"/\\|?*]/g, '_'));
-
-      let totalDownloadedFiles = 0;
-      const downloadPromises = [];
-
-      // Process each question set in the package
-      for (const item of packageData.items) {
-        const questionSet = item.question;
-        if (!questionSet) continue;
-
-        // Create folder for this question set
-        const questionSetName = questionSet.title.replace(/[<>:"/\\|?*]/g, '_');
-        const questionSetFolder = packageFolder.folder(questionSetName);
-
-        // Create subfolders
-        const soalFolder = questionSetFolder.folder("01_Soal");
-        const jawabanFolder = questionSetFolder.folder("02_Kunci_Jawaban");
-        const testCaseFolder = questionSetFolder.folder("03_Test_Cases");
-
-        // Get question set details with files
-        const downloadPromise = axios.get(`${API_URL}/questionsets/${questionSet.id}?download=true`)
-          .then(async (qsResponse) => {
-            const qsData = qsResponse.data;
-
-            if (qsData.files && qsData.files.length > 0) {
-              const fileDownloadPromises = qsData.files.map(async (file) => {
-                let targetFolder = null;
-                let folderName = '';
-
-                // Determine which folder based on file category
-                switch (file.filecategory) {
-                  case 'soal':
-                  case 'questions':
-                    targetFolder = soalFolder;
-                    folderName = 'Soal';
-                    break;
-                  case 'kunci':
-                  case 'answers':
-                    targetFolder = jawabanFolder;
-                    folderName = 'Kunci Jawaban';
-                    break;
-                  case 'test':
-                  case 'testCases':
-                    targetFolder = testCaseFolder;
-                    folderName = 'Test Cases';
-                    break;
-                  default:
-                    return;
-                }
-
-                try {
-                  const fileResponse = await axios.get(`${API_URL}/files/download/${file.id}`, {
-                    responseType: 'blob',
-                    timeout: 30000
-                  });
-
-                  // Get file extension
-                  let fileExtension = '';
-                  let safeFileName = '';
-
-                  if (file.filename && file.filename.includes('.')) {
-                    safeFileName = file.filename;
-                  } else {
-                    const contentType = fileResponse.headers['content-type'] || fileResponse.headers['Content-Type'];
-
-                    if (contentType) {
-                      if (contentType.includes('pdf')) fileExtension = '.pdf';
-                      else if (contentType.includes('word') || contentType.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) fileExtension = '.docx';
-                      else if (contentType.includes('text')) fileExtension = '.txt';
-                      else fileExtension = '.pdf'; // default
-                    } else {
-                      fileExtension = '.pdf';
-                    }
-
-                    safeFileName = `${folderName}_${file.id}${fileExtension}`;
-                  }
-
-                  // Clean filename
-                  safeFileName = safeFileName
-                    .replace(/[<>:"/\\|?*]/g, '_')
-                    .replace(/\s+/g, '_')
-                    .replace(/_+/g, '_');
-
-                  targetFolder.file(safeFileName, fileResponse.data);
-                  totalDownloadedFiles++;
-
-                  console.log(`✅ Added ${safeFileName} to ${questionSetName}/${folderName}`);
-                } catch (error) {
-                  console.error(`❌ Failed to download file ${file.id}:`, error);
-                }
-              });
-
-              await Promise.allSettled(fileDownloadPromises);
-            }
-
-            // Add README for this question set
-            const readmeContent = `
-INFORMASI SOAL
-==============
-
-Judul: ${questionSet.title}
-Mata Kuliah: ${questionSet.subject}
-Tingkat Kesulitan: ${questionSet.level}
-Dosen: ${questionSet.lecturer}
-Tahun: ${questionSet.year}
-Topik: ${questionSet.topics || 'Tidak ada topik'}
-Deskripsi: ${questionSet.description || 'Tidak ada deskripsi'}
-
----
-Bagian dari Paket: ${packageTitle}
-Diunduh pada: ${new Date().toLocaleString('id-ID')}
-            `.trim();
-
-            questionSetFolder.file("README.txt", readmeContent);
-          })
-          .catch(error => {
-            console.error(`❌ Failed to process question set ${questionSet.id}:`, error);
-          });
-
-        downloadPromises.push(downloadPromise);
-      }
-
-      // Wait for all downloads to complete
-      await Promise.allSettled(downloadPromises);
-
-      if (totalDownloadedFiles === 0) {
-        alert('Tidak ada file yang berhasil diunduh dari paket soal ini');
+      
+      // Collect all question set IDs from the package
+      const questionSetIds = packageData.items
+        .map(item => item.question?.id || item.question_id)
+        .filter(id => id)
+        .join(',');
+      
+      if (!questionSetIds) {
+        showNotification('Tidak ada question set ID yang valid untuk diunduh', 'error');
+        setDownloadingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(packageId);
+          return newSet;
+        });
         return;
       }
-
-      // Add main README for the package
-      const mainReadmeContent = `
-PAKET SOAL - ${packageTitle.toUpperCase()}
-${'='.repeat(packageTitle.length + 13)}
-
-INFORMASI PAKET:
-- Judul: ${packageData.title}
-- Deskripsi: ${packageData.description || 'Tidak ada deskripsi'}
-- Mata Kuliah: ${packageData.course?.name || 'Tidak ditentukan'}
-- Pembuat: ${packageData.creator?.full_name || 'Tidak diketahui'}
-- Jumlah Soal: ${packageData.items.length} set soal
-- Tanggal Dibuat: ${new Date(packageData.created_at).toLocaleString('id-ID')}
-
-STRUKTUR FOLDER:
-Setiap set soal memiliki struktur folder:
-- 01_Soal/ : File soal utama
-- 02_Kunci_Jawaban/ : File kunci jawaban
-- 03_Test_Cases/ : File test cases
-- README.txt : Informasi detail soal
-
-INFORMASI DOWNLOAD:
-- Total File Diunduh: ${totalDownloadedFiles} file
-- Tanggal Download: ${new Date().toLocaleString('id-ID')}
-- User: ${currentUser?.username || 'Unknown'}
-
----
-Diunduh dari Bank Soal Informatika
-Universitas Katolik Parahyangan
-© ${new Date().getFullYear()}
-      `.trim();
-
-      packageFolder.file("README_PAKET.txt", mainReadmeContent);
-
-      // Generate ZIP file
-      console.log('🔄 Generating package ZIP file...');
-      const zipBlob = await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: {
-          level: 6
+      
+      // Clean package title untuk digunakan sebagai formTitle
+      const cleanFormTitle = packageTitle.trim() === "" 
+        ? "Paket_Tanpa_Judul" 
+        : packageTitle.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+      
+      // Use the same endpoint as Create.jsx
+      const url = `${API_URL}/files/download-bundle?ids=${questionSetIds}&formTitle=${cleanFormTitle}`;
+      
+      // Trigger download using window.location.href (same as Create.jsx)
+      window.location.href = url;
+      
+      // Show notification
+      showNotification('Download Bundle ZIP Paket Soal dimulai...', 'info');
+      
+      // Increment download count
+      const token = getAuthToken();
+      if (token) {
+        try {
+          const incrementResponse = await axios.post(
+            `${API_URL}/question-packages/${packageId}/increment-download`,
+            {},
+            { 
+              headers: {
+                "x-access-token": token,
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
+          
+          const updatedDownloadCount = incrementResponse.data?.downloads ?? null;
+          
+          setPackages(prev =>
+            prev.map(pkg =>
+              pkg.id === packageId
+                ? {
+                    ...pkg,
+                    downloads:
+                      updatedDownloadCount !== null
+                        ? updatedDownloadCount
+                        : (pkg.downloads || 0) + 1
+                  }
+                : pkg
+            )
+          );
+        } catch (persistError) {
+          console.error("⚠️ Failed to persist package download count:", persistError);
         }
-      });
-
-      // Create safe filename for ZIP
-      const safeFileName = packageTitle
-        .replace(/[^a-zA-Z0-9\s-_]/g, '')
-        .replace(/\s+/g, '_')
-        .substring(0, 50);
-
-      const zipFileName = `Paket_${safeFileName}_${new Date().toISOString().split('T')[0]}.zip`;
-
-      // Save ZIP file
-      saveAs(zipBlob, zipFileName);
-
-      console.log(`✅ Package ZIP file "${zipFileName}" download started successfully`);
-
-      // Show success message
-      alert(`Berhasil mengunduh paket soal "${packageTitle}"!\n\nTotal: ${totalDownloadedFiles} file dalam ${packageData.items.length} set soal`);
-
+      }
+      
+      // Remove from downloading items after a delay
+      setTimeout(() => {
+        setDownloadingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(packageId);
+          return newSet;
+        });
+      }, 2000);
+      
     } catch (error) {
       console.error("❌ Error downloading package:", error);
-      alert(`Gagal mengunduh paket soal: ${error.message}`);
-    } finally {
+      showNotification(`Gagal mengunduh paket soal: ${error.message}`, 'error');
       setDownloadingItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(packageId);
@@ -357,38 +262,38 @@ Universitas Katolik Parahyangan
   const fetchDropdownData = async () => {
     setDropdownLoading(true);
     setDropdownError(null);
-
+    
     try {
       console.log('🔄 Fetching dropdown data for question packages...');
       const response = await axios.get(`${API_URL}/dropdown/all-dropdown-data`);
-
+      
       if (response.data.success) {
         const { courseTags: courseTagsData, materialTags: materialTagsData, difficultyLevels: difficultyData } = response.data.data;
-
+        
         setCourseTags(courseTagsData.map(tag => tag.name));
         setMaterialTags(materialTagsData.map(tag => tag.name));
         setDifficultyLevels(difficultyData.map(level => level.level));
-
+        
         console.log('✅ Dropdown data loaded successfully');
       } else {
         throw new Error(response.data.message || 'Failed to fetch dropdown data');
       }
-
+      
     } catch (error) {
       console.error("❌ Error fetching dropdown data:", error);
       setDropdownError(error.message);
-
+      
       // Fallback data jika API gagal
       console.log('🔄 Using fallback data for dropdowns');
       setDifficultyLevels(['Mudah', 'Sedang', 'Sulit']);
       setCourseTags([
-        'Algoritma dan Struktur Data', 'Pemrograman Web', 'Basis Data',
+        'Algoritma dan Struktur Data', 'Pemrograman Web', 'Basis Data', 
         'Pemrograman Berorientasi Objek', 'Jaringan Komputer', 'Kecerdasan Buatan'
       ]);
       setMaterialTags([
-        'Algoritma', 'Struktur Data', 'HTML', 'CSS', 'JavaScript', 'React',
-        'SQL', 'Normalisasi', 'ERD', 'OOP', 'Java', 'Inheritance',
-        'Polymorphism', 'TCP/IP', 'Routing', 'Switching', 'Machine Learning',
+        'Algoritma', 'Struktur Data', 'HTML', 'CSS', 'JavaScript', 'React', 
+        'SQL', 'Normalisasi', 'ERD', 'OOP', 'Java', 'Inheritance', 
+        'Polymorphism', 'TCP/IP', 'Routing', 'Switching', 'Machine Learning', 
         'Neural Network', 'AI'
       ]);
     } finally {
@@ -404,11 +309,11 @@ Universitas Katolik Parahyangan
         console.warn("No auth token found for fetching courses");
         return [];
       }
-
+      
       console.log('🔄 Fetching course options...');
-
+      
       const response = await axios.get(`${API_URL}/course-material-stats`, {
-        headers: {
+        headers: { 
           "x-access-token": token,
           "Content-Type": "application/json"
         }
@@ -419,7 +324,7 @@ Universitas Katolik Parahyangan
           id: course.id,
           name: course.name
         }));
-
+        
         setCourseOptions(courses);
         console.log(`✅ Loaded ${courses.length} course options`);
         return courses;
@@ -433,68 +338,134 @@ Universitas Katolik Parahyangan
     }
   };
 
-  // Filter function untuk paket soal (QuestionPackage)
-  const filterData = () => {
-    return packages.filter(pkg => {
+  // Filter function untuk paket soal (QuestionPackage) - menggunakan useMemo untuk optimasi
+  const filteredData = useMemo(() => {
+    // Pastikan packages adalah array
+    if (!Array.isArray(packages)) {
+      console.log('⚠️ packages is not an array:', packages);
+      return [];
+    }
+
+    if (packages.length === 0) {
+      console.log('⚠️ packages array is empty');
+      return [];
+    }
+
+    // Normalize searchQuery - pastikan selalu string
+    const normalizedSearchQuery = (searchQuery || '').trim();
+    
+    // Normalize filter arrays
+    const hasSelectedLevel = Array.isArray(selectedLevel) && selectedLevel.length > 0;
+    const hasSelectedCourseTags = Array.isArray(selectedCourseTags) && selectedCourseTags.length > 0;
+    const hasSelectedMaterialTags = Array.isArray(selectedMaterialTags) && selectedMaterialTags.length > 0;
+    const hasDateRange = dateRange && (dateRange.start !== '' || dateRange.end !== '');
+
+    // Jika searchQuery kosong dan tidak ada filter lain, return semua packages
+    const hasActiveFilters = 
+      normalizedSearchQuery !== '' ||
+      hasSelectedLevel ||
+      hasSelectedCourseTags ||
+      hasSelectedMaterialTags ||
+      hasDateRange;
+
+    if (!hasActiveFilters) {
+      console.log('✅ No active filters, returning all packages:', packages.length);
+      return packages;
+    }
+
+    console.log('🔍 Applying filters:', {
+      searchQuery: normalizedSearchQuery,
+      hasSelectedLevel,
+      hasSelectedCourseTags,
+      hasSelectedMaterialTags,
+      hasDateRange,
+      totalPackages: packages.length
+    });
+
+    const filtered = packages.filter(pkg => {
+      if (!pkg) return false;
+
       // Filter by search query (judul atau deskripsi)
       const matchesSearch =
-        searchQuery === '' ||
-        pkg.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pkg.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pkg.course?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pkg.items?.some(item =>
-          item.question?.title?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        normalizedSearchQuery === '' ||
+        (pkg.title && pkg.title.toLowerCase().includes(normalizedSearchQuery.toLowerCase())) ||
+        (pkg.description && pkg.description.toLowerCase().includes(normalizedSearchQuery.toLowerCase())) ||
+        (pkg.course?.name && pkg.course.name.toLowerCase().includes(normalizedSearchQuery.toLowerCase())) ||
+        (pkg.items && Array.isArray(pkg.items) && pkg.items.some(item =>
+          item?.question?.title && item.question.title.toLowerCase().includes(normalizedSearchQuery.toLowerCase())
+        ));
 
       // Filter by level (gunakan level dari soal di dalam paket)
       const matchesLevel =
-        selectedLevel.length === 0 ||
-        pkg.items?.some(item =>
-          selectedLevel.includes(item.question?.level)
-        );
+        !hasSelectedLevel ||
+        (pkg.items && Array.isArray(pkg.items) && pkg.items.some(item =>
+          selectedLevel.includes(item?.question?.level)
+        ));
 
       // Filter by course tags (mata kuliah)
       const matchesCourseTags =
-        selectedCourseTags.length === 0 ||
-        selectedCourseTags.some(tag =>
-          pkg.course?.name?.toLowerCase().includes(tag.toLowerCase())
-        );
+        !hasSelectedCourseTags ||
+        (pkg.course?.name && selectedCourseTags.some(tag =>
+          pkg.course.name.toLowerCase().includes(tag.toLowerCase())
+        ));
 
       // Filter by material tags (topik dari deskripsi soal)
       const matchesMaterialTags =
-        selectedMaterialTags.length === 0 ||
-        pkg.items?.some(item =>
+        !hasSelectedMaterialTags ||
+        (pkg.items && Array.isArray(pkg.items) && pkg.items.some(item =>
           selectedMaterialTags.some(tag =>
-            item.question?.description?.toLowerCase().includes(tag.toLowerCase())
+            item?.question?.description && item.question.description.toLowerCase().includes(tag.toLowerCase())
           )
-        );
+        ));
 
       // Filter by date
-      const itemDate = new Date(pkg.created_at);
-      const matchesDate =
-        (dateRange.start === '' || new Date(dateRange.start) <= itemDate) &&
-        (dateRange.end === '' || new Date(dateRange.end) >= itemDate);
+      let matchesDate = true;
+      if (hasDateRange) {
+        try {
+          const itemDate = new Date(pkg.created_at);
+          matchesDate =
+            (dateRange.start === '' || new Date(dateRange.start) <= itemDate) &&
+            (dateRange.end === '' || new Date(dateRange.end) >= itemDate);
+        } catch (e) {
+          console.error('Error parsing date:', e);
+          matchesDate = true; // Jika error, tampilkan item tersebut
+        }
+      }
 
       return matchesSearch && matchesLevel && matchesCourseTags && matchesMaterialTags && matchesDate;
     });
-  };
 
-  const filteredData = filterData();
+    console.log('✅ Filter result:', {
+      totalPackages: packages.length,
+      filteredCount: filtered.length,
+      searchQuery: normalizedSearchQuery
+    });
+
+    return filtered;
+  }, [packages, searchQuery, selectedLevel, selectedCourseTags, selectedMaterialTags, dateRange]);
   const navigate = useNavigate();
 
+  // Tambahkan fungsi ini di dalam Komponen Anda (misalnya: di dalam ListPage)
+const getLevelColor = (level) => {
+  if (!level || level === 'N/A') return 'bg-gray-100 text-gray-800';
+  if (level.toLowerCase().includes('mudah')) return 'bg-green-100 text-green-800';
+  if (level.toLowerCase().includes('sedang')) return 'bg-yellow-100 text-yellow-800';
+  return 'bg-red-100 text-red-800';
+};
+  
   // Filter dropdown data berdasarkan input pencarian
-  const filteredLevels = difficultyLevels.filter(level =>
+  const filteredLevels = difficultyLevels.filter(level => 
     level.toLowerCase().includes(levelSearch.toLowerCase())
   );
-
-  const filteredCourseTags = courseTags.filter(tag =>
+  
+  const filteredCourseTags = courseTags.filter(tag => 
     tag.toLowerCase().includes(courseTagSearch.toLowerCase())
   );
-
-  const filteredMaterialTags = materialTags.filter(tag =>
+  
+  const filteredMaterialTags = materialTags.filter(tag => 
     tag.toLowerCase().includes(materialTagSearch.toLowerCase())
   );
-
+  
   // Fungsi untuk menambah/menghapus level
   const toggleLevel = (level) => {
     if (selectedLevel.includes(level)) {
@@ -503,7 +474,7 @@ Universitas Katolik Parahyangan
       setSelectedLevel(prev => [...prev, level]);
     }
   };
-
+  
   // Fungsi untuk menambah/menghapus tag mata kuliah
   const toggleCourseTag = (tag) => {
     if (selectedCourseTags.includes(tag)) {
@@ -512,7 +483,7 @@ Universitas Katolik Parahyangan
       setSelectedCourseTags(prev => [...prev, tag]);
     }
   };
-
+  
   // Fungsi untuk menambah/menghapus tag materi
   const toggleMaterialTag = (tag) => {
     if (selectedMaterialTags.includes(tag)) {
@@ -535,7 +506,7 @@ Universitas Katolik Parahyangan
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
   };
-
+  
   // Dropdown animation variants
   const dropdownVariants = {
     hidden: { opacity: 0, y: -10, height: 0 },
@@ -547,22 +518,22 @@ Universitas Katolik Parahyangan
     const initializeData = async () => {
       try {
         console.log('🔄 Initializing QuestionSetsPage data...');
-
+        
         // Fetch course options terlebih dahulu
         const courses = await fetchCourseOptions();
-
+        
         // Fetch packages dan dropdown data secara paralel
         await Promise.all([
           fetchDropdownData(),
           fetchPackages()
         ]);
-
+        
         console.log('✅ QuestionSetsPage data initialization complete');
       } catch (error) {
         console.error('❌ Error initializing data:', error);
       }
     };
-
+    
     initializeData();
   }, []);
 
@@ -590,7 +561,7 @@ Universitas Katolik Parahyangan
       console.log('✅ Question packages loaded:', data.length);
     } catch (err) {
       console.error('❌ Error fetching packages:', err);
-      alert(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -667,9 +638,9 @@ Universitas Katolik Parahyangan
   return (
     <div className="min-h-screen bg-white">
       <Header currentUser={currentUser} />
-
+      
       <DropdownStatusIndicator />
-
+      
       <div className="w-full px-4 md:px-8 py-8 md:py-12">
         {/* Header Section with Animated Background */}
         <div className="relative overflow-hidden">
@@ -744,17 +715,19 @@ Universitas Katolik Parahyangan
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="px-6 py-3 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm"
-              onClick={() => filterData()}
-            >
-              <Search className="w-5 h-5" />
-              Cari
-            </motion.button>
+            {searchQuery && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors shadow-sm"
+                onClick={() => setSearchQuery('')}
+              >
+                <X className="w-5 h-5" />
+                Hapus
+              </motion.button>
+            )}
           </div>
-
+          
           {/* Dropdown Filters dengan dropdown-container class */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
             {/* Tingkat Kesulitan Dropdown */}
@@ -769,14 +742,14 @@ Universitas Katolik Parahyangan
                   onChange={(e) => setLevelSearch(e.target.value)}
                   onClick={() => setShowLevelDropdown(true)}
                 />
-                <button
+                <button 
                   className="absolute right-2 top-1/2 transform -translate-y-1/2"
                   onClick={() => setShowLevelDropdown(!showLevelDropdown)}
                 >
                   <ChevronDown className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
-
+              
               {/* Dropdown Menu */}
               <AnimatePresence>
                 {showLevelDropdown && (
@@ -809,7 +782,7 @@ Universitas Katolik Parahyangan
                 )}
               </AnimatePresence>
             </div>
-
+            
             {/* Tag Mata Kuliah Dropdown */}
             <div className="relative dropdown-container">
               <label className="block text-sm font-medium mb-2 text-gray-700">Pilih Tag Mata Kuliah</label>
@@ -822,14 +795,14 @@ Universitas Katolik Parahyangan
                   onChange={(e) => setCourseTagSearch(e.target.value)}
                   onClick={() => setShowCourseTagDropdown(true)}
                 />
-                <button
+                <button 
                   className="absolute right-2 top-1/2 transform -translate-y-1/2"
                   onClick={() => setShowCourseTagDropdown(!showCourseTagDropdown)}
                 >
                   <ChevronDown className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
-
+              
               {/* Dropdown Menu */}
               <AnimatePresence>
                 {showCourseTagDropdown && (
@@ -862,7 +835,7 @@ Universitas Katolik Parahyangan
                 )}
               </AnimatePresence>
             </div>
-
+            
             {/* Tag Materi Dropdown */}
             <div className="relative dropdown-container">
               <label className="block text-sm font-medium mb-2 text-gray-700">Pilih Tag Materi</label>
@@ -875,14 +848,14 @@ Universitas Katolik Parahyangan
                   onChange={(e) => setMaterialTagSearch(e.target.value)}
                   onClick={() => setShowMaterialTagDropdown(true)}
                 />
-                <button
+                <button 
                   className="absolute right-2 top-1/2 transform -translate-y-1/2"
                   onClick={() => setShowMaterialTagDropdown(!showMaterialTagDropdown)}
                 >
                   <ChevronDown className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
-
+              
               {/* Dropdown Menu */}
               <AnimatePresence>
                 {showMaterialTagDropdown && (
@@ -940,7 +913,7 @@ Universitas Katolik Parahyangan
                   </button>
                 </motion.span>
               ))}
-
+              
               {selectedCourseTags.map(tag => (
                 <motion.span
                   key={tag}
@@ -955,7 +928,7 @@ Universitas Katolik Parahyangan
                   </button>
                 </motion.span>
               ))}
-
+              
               {selectedMaterialTags.map(tag => (
                 <motion.span
                   key={tag}
@@ -1030,8 +1003,62 @@ Universitas Katolik Parahyangan
         </motion.div>
 
         {/* Results Section - UPDATED dengan tombol delete */}
-        <AnimatePresence mode="wait">
-          {viewMode === 'grid' ? (
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+                rotate: [0, 180, 360]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full"
+            />
+          </div>
+        ) : !filteredData || filteredData.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16"
+          >
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <Search className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {searchQuery.trim() !== '' || selectedLevel.length > 0 || selectedCourseTags.length > 0 || selectedMaterialTags.length > 0 || dateRange.start || dateRange.end
+                  ? 'Tidak ada paket soal yang sesuai'
+                  : 'Belum ada paket soal'}
+              </h3>
+              <p className="text-gray-600 mb-4">
+                {searchQuery.trim() !== '' || selectedLevel.length > 0 || selectedCourseTags.length > 0 || selectedMaterialTags.length > 0 || dateRange.start || dateRange.end
+                  ? 'Coba ubah kata kunci pencarian atau filter yang Anda gunakan.'
+                  : 'Paket soal akan muncul di sini setelah dibuat.'}
+              </p>
+              {(searchQuery.trim() !== '' || selectedLevel.length > 0 || selectedCourseTags.length > 0 || selectedMaterialTags.length > 0 || dateRange.start || dateRange.end) && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedLevel([]);
+                    setSelectedCourseTags([]);
+                    setSelectedMaterialTags([]);
+                    setDateRange({ start: '', end: '' });
+                  }}
+                >
+                  Hapus Semua Filter
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <AnimatePresence mode="wait" key={`results-${viewMode}-${filteredData.length}-${searchQuery || 'empty'}`}>
+            {viewMode === 'grid' ? (
             <motion.div
               variants={containerVariants}
               initial="hidden"
@@ -1041,7 +1068,7 @@ Universitas Katolik Parahyangan
               {filteredData.map((item) => {
                 const isDownloading = downloadingItems.has(item.id);
                 const userCanDelete = canDelete(item.created_by);
-
+                
                 return (
                   <motion.div
                     key={item.id}
@@ -1072,20 +1099,20 @@ Universitas Katolik Parahyangan
                           )}
                         </div>
                       </div>
-
+                      
                       <h3 className="text-lg font-semibold mb-2 text-gray-900 group-hover:text-blue-700 transition-colors">{item.title}</h3>
                       <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description}</p>
-
+                      
                       <div className="flex items-center text-sm text-gray-500 mb-3">
                         <User className="w-4 h-4 mr-1" />
                         <span>{item.creator?.full_name || "Tidak diketahui"}</span>
                       </div>
-
+                      
                       <div className="flex items-center text-sm text-gray-500 mb-4">
                         <Tag className="w-4 h-4 mr-1" />
                         <span>{item.items?.length || 0} soal</span>
                       </div>
-
+                      
                       <div className="flex items-center gap-2 mb-4">
                         <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">
                           {item.course?.name || "Tanpa Mata Kuliah"}
@@ -1101,7 +1128,7 @@ Universitas Katolik Parahyangan
                             day: 'numeric'
                           })}
                         </div>
-
+                        
                         <motion.button
                           whileHover={{ scale: isDownloading ? 1 : 1.05 }}
                           whileTap={{ scale: isDownloading ? 1 : 0.95 }}
@@ -1111,10 +1138,11 @@ Universitas Katolik Parahyangan
                               handleDownloadPackage(item.id, item.title);
                             }
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${isDownloading
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                            isDownloading 
+                              ? 'bg-gray-400 text-white cursor-not-allowed' 
                               : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
+                          }`}
                           disabled={isDownloading}
                         >
                           {isDownloading ? (
@@ -1141,116 +1169,145 @@ Universitas Katolik Parahyangan
             </motion.div>
           ) : (
             <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="space-y-4"
+                className="overflow-x-auto max-w-7xl mx-auto bg-white rounded-xl shadow-lg"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                key="table-ui-in-grid-mode" // Kunci unik untuk AnimatePresence
             >
-              {filteredData.map((item) => {
-                const isDownloading = downloadingItems.has(item.id);
-                const userCanDelete = canDelete(item.created_by);
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-gray-700">
+                                    Nama File <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-gray-700">
+                                    Mata Kuliah <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-gray-700">
+                                    Tingkat Kesulitan <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-gray-700">
+                                    Dosen <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-gray-700">
+                                    Tanggal <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Aksi
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredData.map((item) => {
+                            const isDownloading = downloadingItems.has(item.id);
+                            const userCanDelete = canDelete(item.created_by); 
 
-                return (
-                  <motion.div
-                    key={item.id}
-                    variants={itemVariants}
-                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all p-4 cursor-pointer group"
-                    onClick={() => handleCardClick(item.id)}
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <div className="bg-blue-100 p-2 rounded-lg mr-3 group-hover:bg-blue-200 transition-colors">
-                            <Book className="w-6 h-6 text-blue-600" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-700 transition-colors flex-1">{item.title}</h3>
-                          {userCanDelete && (
-                            <button
-                              onClick={(e) => openDeleteModal(e, item.id, item.title)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2"
-                              title="Hapus paket soal"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                            // Mapping data dari Card View ke kolom Tabel
+                            const namaFile = item.title; 
+                            const mataKuliah = item.course?.name || "N/A";
+                            const dosen = item.creator?.full_name || "Tidak diketahui";
+                            const tanggal = new Date(item.created_at).toLocaleDateString('id-ID', {
+                                year: 'numeric', month: 'short', day: 'numeric'
+                            });
+                            // item.level digunakan dari data yang diasumsikan ada di kedua mode
 
-                        <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-
-                        <div className="flex flex-wrap gap-4 mb-2">
-                          <div className="flex items-center text-sm text-gray-500">
-                            <User className="w-4 h-4 mr-1" />
-                            <span>{item.creator?.full_name || "Tidak diketahui"}</span>
-                          </div>
-
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Tag className="w-4 h-4 mr-1" />
-                            <span>{item.items?.length || 0} soal</span>
-                          </div>
-
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Clock className="w-4 h-4 mr-1" />
-                            {new Date(item.created_at).toLocaleDateString('id-ID', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </div>
-
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Download className="w-4 h-4 mr-1" />
-                            {item.downloads || 0}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">
-                            {item.course?.name || "Tanpa Mata Kuliah"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 md:mt-0 md:ml-4 flex md:flex-col justify-end">
-                        <motion.button
-                          whileHover={{ scale: isDownloading ? 1 : 1.05 }}
-                          whileTap={{ scale: isDownloading ? 1 : 0.95 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDownloading) {
-                              handleDownloadPackage(item.id, item.title);
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${isDownloading
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                          disabled={isDownloading}
-                        >
-                          {isDownloading ? (
-                            <>
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                className="w-3 h-3 border-2 border-white border-t-transparent rounded-full"
-                              />
-                              Unduh...
-                            </>
-                          ) : (
-                            <>
-                              <Download className="w-3 h-3" />
-                              Unduh
-                            </>
-                          )}
-                        </motion.button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                            return (
+                                <motion.tr
+                                    key={item.id}
+                                    variants={itemVariants}
+                                    className="hover:bg-gray-50 cursor-pointer"
+                                    onClick={() => navigate(`/question-packages/${item.id}`)}
+                                >
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {namaFile}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {mataKuliah}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {/* Menggunakan getLevelColor dan item.level */}
+                                        <span className={`px-3 py-1 rounded-full text-xs ${getLevelColor(item.level || 'N/A')}`}>
+                                            {item.level || 'N/A'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {dosen}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {tanggal}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <motion.button
+                                                whileHover={{ scale: isDownloading ? 1 : 1.05 }}
+                                                whileTap={{ scale: isDownloading ? 1 : 0.95 }}
+                                                className={`inline-flex items-center px-3 py-1 rounded-lg text-sm text-white transition-colors ${
+                                                    isDownloading 
+                                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                                        : 'bg-blue-600 hover:bg-blue-700'
+                                                }`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!isDownloading) {
+                                                        // Menggunakan handler download Card View
+                                                        handleDownloadPackage(item.id, item.title);
+                                                    }
+                                                }}
+                                                disabled={isDownloading}
+                                            >
+                                                {isDownloading ? (
+                                                    <>
+                                                        <motion.div
+                                                            animate={{ rotate: 360 }}
+                                                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                                            className="w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"
+                                                        />
+                                                        Unduh...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Download className="w-3 h-3 mr-1" />
+                                                        Unduh ZIP
+                                                    </>
+                                                )}
+                                            </motion.button>
+                                            {userCanDelete && (
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    className="inline-flex items-center px-3 py-1 rounded-lg text-sm text-white bg-red-600 hover:bg-red-700"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openDeleteModal(e, item.id, item.title);
+                                                    }}
+                                                >
+                                                    <Trash2 className="w-3 h-3 mr-1" />
+                                                    Hapus
+                                                </motion.button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </motion.tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </motion.div>
-          )}
-        </AnimatePresence>
-
+            )}
+          </AnimatePresence>
+        )}
+        
         {/* Floating Create Button */}
         <Link to="/create">
           <motion.button
@@ -1265,91 +1322,124 @@ Universitas Katolik Parahyangan
 
       {/* Modal Konfirmasi Delete */}
       {deleteModal.show && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{
-            background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(10px)'
-          }}
-          onClick={() => !deleting && closeDeleteModal()}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200"
+    <div 
+      // MODIFIKASI BERIKUT: bg-black diganti menjadi bg-white/70 dan ditambahkan backdrop-blur-md
+      className="fixed inset-0 bg-white/70 backdrop-blur-md flex items-center justify-center z-50 p-4"
+      onClick={() => !deleting && closeDeleteModal()}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+      >
+        <div className="flex items-start mb-4">
+          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div className="ml-4 flex-1">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Hapus Paket Soal?
+            </h3>
+            <p className="text-sm text-gray-600">
+              Apakah Anda yakin ingin menghapus paket <strong>"{deleteModal.packageTitle}"</strong>?
+            </p>
+            <p className="text-sm text-red-600 mt-2 font-medium">
+              ⚠️ Semua soal di dalam paket ini juga akan terhapus!
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={closeDeleteModal}
+            disabled={deleting}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            {/* Header */}
-            <div className="flex items-start mb-6">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Hapus Paket Soal
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Konfirmasi penghapusan paket soal berikut
-                </p>
-              </div>
-            </div>
+            Batal
+          </button>
+          <button
+            onClick={handleDeletePackage}
+            disabled={deleting}
+            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+          >
+            {deleting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                Menghapus...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4 mr-1" />
+                Hapus
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+)}
 
-            {/* Info Paket */}
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4">
-                Apakah Anda yakin ingin menghapus paket <strong>"{deleteModal.packageTitle}"</strong>?
-              </p>
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-start">
-                  <AlertTriangle className="w-4 h-4 text-red-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="text-red-800 font-medium mb-1">Peringatan</p>
-                    <p className="text-red-700">
-                      Semua soal di dalam paket ini juga akan terhapus secara permanen!
-                    </p>
-                  </div>
+      {/* Notification Overlay */}
+      <AnimatePresence>
+        {notification.show && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -50, scale: 0.9 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed top-4 right-4 z-[100] max-w-md"
+          >
+            <motion.div
+              className={`rounded-lg shadow-2xl border-2 p-4 backdrop-blur-sm ${
+                notification.type === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-900'
+                  : notification.type === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : notification.type === 'warning'
+                  ? 'bg-yellow-50 border-yellow-200 text-yellow-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  {notification.type === 'success' && (
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  )}
+                  {notification.type === 'error' && (
+                    <XCircle className="w-6 h-6 text-red-600" />
+                  )}
+                  {notification.type === 'warning' && (
+                    <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                  )}
+                  {notification.type === 'info' && (
+                    <Info className="w-6 h-6 text-blue-600" />
+                  )}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium whitespace-pre-line break-words">
+                    {notification.message}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                  className={`flex-shrink-0 p-1 rounded-full hover:bg-opacity-20 transition-colors ${
+                    notification.type === 'success'
+                      ? 'text-green-600 hover:bg-green-200'
+                      : notification.type === 'error'
+                      ? 'text-red-600 hover:bg-red-200'
+                      : notification.type === 'warning'
+                      ? 'text-yellow-600 hover:bg-yellow-200'
+                      : 'text-blue-600 hover:bg-blue-200'
+                  }`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-
-            {/* Tombol */}
-            <div className="flex space-x-3">
-              <button
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleDeletePackage}
-                disabled={deleting}
-                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
-              >
-                {deleting ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
-                    />
-                    Menghapus...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Hapus
-                  </>
-                )}
-              </button>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>

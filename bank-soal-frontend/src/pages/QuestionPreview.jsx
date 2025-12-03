@@ -10,7 +10,7 @@ import EditModal from '../components/EditModal';
 import axios from 'axios';
 import AuthService from '../services/auth.service';
 
-const API_URL = "https://sibasotest-production.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
 
 // Setup axios interceptor for authentication
 axios.interceptors.request.use(
@@ -243,7 +243,7 @@ const CodePreview = ({ file }) => {
 };
 
 // Upload Modal Component
-const UploadFileModal = ({ isOpen, onClose, questionSetId, fileCategory, onFileUploaded }) => {
+const UploadFileModal = ({ isOpen, onClose, questionSetId, fileCategory, onFileUploaded, replaceFileId = null }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -283,6 +283,24 @@ const UploadFileModal = ({ isOpen, onClose, questionSetId, fileCategory, onFileU
     setError(null);
 
     try {
+      // Jika replaceFileId ada, hapus file lama terlebih dahulu
+      if (replaceFileId) {
+        try {
+          await axios.delete(`${API_URL}/files/${replaceFileId}`);
+          console.log('✅ File lama berhasil dihapus, melanjutkan upload file baru...');
+        } catch (deleteErr) {
+          console.error('⚠️ Error menghapus file lama:', deleteErr);
+          // Lanjutkan upload meskipun gagal hapus (mungkin file sudah tidak ada)
+          // Tapi tetap tampilkan warning jika perlu
+          if (deleteErr.response?.status !== 404) {
+            setError('Gagal menghapus file lama. Silakan coba lagi.');
+            setUploading(false);
+            return;
+          }
+        }
+      }
+
+      // Upload file baru menggunakan endpoint yang sudah ada
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('questionSetId', questionSetId);
@@ -377,8 +395,12 @@ const UploadFileModal = ({ isOpen, onClose, questionSetId, fileCategory, onFileU
               <Upload className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Upload {getCategoryDisplayName(fileCategory)}</h2>
-              <p className="text-gray-500 text-sm">Tambahkan file baru</p>
+              <h2 className="text-xl font-bold text-gray-900">
+                {replaceFileId ? 'Upload Ulang' : 'Upload'} {getCategoryDisplayName(fileCategory)}
+              </h2>
+              <p className="text-gray-500 text-sm">
+                {replaceFileId ? 'File baru akan menimpa file yang sedang dilihat' : 'Tambahkan file baru'}
+              </p>
             </div>
           </div>
           <button
@@ -836,6 +858,7 @@ const CombinedPDFViewer = ({ questionSetId, type = 'questions', isAuthenticated,
           src={pdfUrl}
           className="w-full h-full"
           title={`${type === 'questions' ? 'Soal dan Test Cases' : 'Kunci Jawaban'} Viewer`}
+          allow="fullscreen"
         />
       </div>
       
@@ -1004,8 +1027,11 @@ const QuestionPreview = ({ currentUser }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [tabUploadModal, setTabUploadModal] = useState({ isOpen: false, category: '', questionSetId: null });
+  const [replaceUploadModal, setReplaceUploadModal] = useState({ isOpen: false, file: null, category: '', questionSetId: null });
   const [currentAnswerPage, setCurrentAnswerPage] = useState(1);
   const [itemsPerPage] = useState(1); // 1 jawaban per halaman
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     const user = AuthService?.getCurrentUser ? AuthService.getCurrentUser() : null;
@@ -1033,7 +1059,23 @@ const QuestionPreview = ({ currentUser }) => {
     }
 
     fetchQuestionSetDetails();
+    fetchHistory();
   }, [id]);
+
+  const fetchHistory = async () => {
+    if (!id) return;
+    
+    try {
+      setHistoryLoading(true);
+      const response = await axios.get(`${API_URL}/question-packages/history/${id}`);
+      setHistory(response.data || []);
+    } catch (error) {
+      console.error("Error fetching history:", error);
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (questionSet && questionSet.id) {
@@ -1175,6 +1217,7 @@ const QuestionPreview = ({ currentUser }) => {
             src={`${API_URL}/files/blob/${file.id}`}
             className="w-full h-full"
             title="PDF Viewer"
+            allow="fullscreen"
           />
         </div>
       );
@@ -1218,6 +1261,13 @@ const QuestionPreview = ({ currentUser }) => {
       return null;
     }
 
+    const getFileCategory = (fileCategory) => {
+      if (fileCategory === 'soal' || fileCategory === 'questions') return 'soal';
+      if (fileCategory === 'kunci' || fileCategory === 'answers') return 'kunci';
+      if (fileCategory === 'test' || fileCategory === 'testCases') return 'test';
+      return fileCategory;
+    };
+
     return (
       <div className="flex items-center space-x-2">
         <motion.button
@@ -1231,16 +1281,35 @@ const QuestionPreview = ({ currentUser }) => {
           <span className="font-medium">Download</span>
         </motion.button>
         {isAuthenticated && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleDeleteClick(file)}
-            className="flex items-center text-red-600 hover:text-red-800 transition-colors px-3 py-2 rounded-lg hover:bg-red-50"
-            title="Hapus file"
-          >
-            <Trash2 className="w-5 h-5 mr-2" />
-            <span className="font-medium">Delete</span>
-          </motion.button>
+          <>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                setReplaceUploadModal({
+                  isOpen: true,
+                  file: file,
+                  category: getFileCategory(file.filecategory),
+                  questionSetId: questionSet.id
+                });
+              }}
+              className="flex items-center text-green-600 hover:text-green-800 transition-colors px-3 py-2 rounded-lg hover:bg-green-50"
+              title="Upload ulang file untuk menimpa file ini"
+            >
+              <Upload className="w-5 h-5 mr-2" />
+              <span className="font-medium">Upload Ulang</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleDeleteClick(file)}
+              className="flex items-center text-red-600 hover:text-red-800 transition-colors px-3 py-2 rounded-lg hover:bg-red-50"
+              title="Hapus file"
+            >
+              <Trash2 className="w-5 h-5 mr-2" />
+              <span className="font-medium">Delete</span>
+            </motion.button>
+          </>
         )}
       </div>
     );
@@ -1538,6 +1607,60 @@ const QuestionPreview = ({ currentUser }) => {
             </div>
           )}
         </div>
+
+        {/* History Section */}
+        <div className="bg-white rounded-xl shadow-md p-6 mt-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">History Paket Soal</h2>
+          {historyLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : history.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Judul Paket</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Mata Kuliah</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tanggal Ditambahkan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item, index) => (
+                    <motion.tr
+                      key={item.id || index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {item.title || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {item.courseName || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : '-'}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500">Belum ada history paket soal untuk soal ini</p>
+            </div>
+          )}
+        </div>
       </div>
       
       <DeleteConfirmationModal
@@ -1559,6 +1682,23 @@ const QuestionPreview = ({ currentUser }) => {
         onFileUploaded={(file) => {
           handleFileUploaded(file);
           setTabUploadModal({ isOpen: false, category: '', questionSetId: null });
+        }}
+      />
+      
+      <UploadFileModal
+        isOpen={replaceUploadModal.isOpen}
+        onClose={() => setReplaceUploadModal({ isOpen: false, file: null, category: '', questionSetId: null })}
+        questionSetId={replaceUploadModal.questionSetId}
+        fileCategory={replaceUploadModal.category}
+        replaceFileId={replaceUploadModal.file?.id || null}
+        onFileUploaded={(file) => {
+          showToast(`File "${file.originalname}" berhasil diupload ulang dan menimpa file sebelumnya`, 'success');
+          fetchQuestionSetDetails();
+          // Refresh preview jika file yang di-replace sedang di-preview
+          if (replaceUploadModal.file && files[activeTab]?.some(f => f.id === replaceUploadModal.file.id)) {
+            // File akan otomatis ter-refresh karena fetchQuestionSetDetails sudah dipanggil
+          }
+          setReplaceUploadModal({ isOpen: false, file: null, category: '', questionSetId: null });
         }}
       />
       
