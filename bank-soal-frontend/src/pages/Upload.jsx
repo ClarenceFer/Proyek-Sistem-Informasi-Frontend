@@ -8,7 +8,7 @@ import Header from '../components/Header';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
 
-const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi-production.up.railway.app/api";
 
 const UploadPage = ({ currentUser }) => {
   const [files, setFiles] = useState({

@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AuthService from '../../services/auth.service'; // Pastikan path ini benar
 
 // URL dasar untuk API dosen Anda
-const API_URL = 'https://hosting-backend-prosi.up.railway.app/api/admin/';  // Pastikan port dan path ini benar
+const API_URL = 'https://hosting-backend-prosi-production.up.railway.app/api/admin/';  // Pastikan port dan path ini benar
 
 const AdminPage = ({ currentUser }) => {
   const navigate = useNavigate();

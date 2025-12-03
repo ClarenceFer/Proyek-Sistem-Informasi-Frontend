@@ -22,7 +22,7 @@ import { AnimatePresence } from "framer-motion";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi-production.up.railway.app/api";
 
 const QuestionSetsPreview = ({ currentUser }) => {
   const { id: packageId } = useParams();

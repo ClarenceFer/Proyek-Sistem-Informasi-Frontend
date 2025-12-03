@@ -9,7 +9,7 @@ import axios from 'axios';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi-production.up.railway.app/api";
 
 const SearchPage = ({ currentUser }) => {
   const navigate = useNavigate();

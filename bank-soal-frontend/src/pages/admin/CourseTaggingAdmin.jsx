@@ -5,7 +5,7 @@ import LogoIF from '../../assets/LogoIF.jpg';
 import axios from 'axios';
 import AuthService from '../../services/auth.service';
 
-const API_URL = 'https://hosting-backend-prosi.up.railway.app/api'; 
+const API_URL = 'https://hosting-backend-prosi-production.up.railway.app/api'; 
 
 // Service untuk mengambil course data
 const CourseService = {

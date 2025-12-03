@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = "https://hosting-backend-prosi.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi-production.up.railway.app/api";
 
 const QuestionSetsPage = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState('semua');
