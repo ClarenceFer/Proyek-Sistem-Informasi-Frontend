@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, User, LogOut, Tag, BookOpen, Trash2, X, AlertCircle, CheckCircle, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import LogoIF from '../../assets/LogoIF.jpg';
+import LogoIF from "../assets/LogoIF.jpg";
 import axios from 'axios';
 import AuthService from '../../services/auth.service';
 
