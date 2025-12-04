@@ -3,6 +3,7 @@ import { Search, Plus, User, LogOut, Tag, Edit, Trash2, Save, X, AlertCircle, Ch
 import { Link, useNavigate } from 'react-router-dom';
 import MaterialTagService from '../../services/materialTag.service'; // Assuming this path is correct
 import AuthService from '../../services/auth.service'; // Assuming this path is correct
+import LogoIF from './assets/LogoIF.jpg';
 
 const TaggingAdmin = ({ currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -165,7 +166,7 @@ const Header = () => (
       <div className="flex items-center justify-between gap-8">
         <div className="flex items-center space-x-4 flex-shrink-0">
           <img
-            src="/src/assets/LogoIF.jpg"
+            src={LogoIF}
             alt="Logo Informatika UNPAR"
             className="h-12 w-auto"
           />

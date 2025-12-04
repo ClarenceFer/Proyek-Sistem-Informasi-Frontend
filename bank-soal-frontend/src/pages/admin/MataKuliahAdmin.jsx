@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, User, LogOut, Edit, Trash2, Save, X, Tag, Filter, AlertCircle, CheckCircle } from 'lucide-react'; // Mengganti BookOpen, Code, GraduationCap dengan Tag
 import { BrowserRouter as Router, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Menggunakan Axios untuk permintaan HTTP
+import LogoIF from './assets/LogoIF.jpg';
 import AuthService from '../../services/auth.service'; // Assuming this path is correct
 
 // Base URL untuk API Anda, sekarang menunjuk ke endpoint tags
@@ -277,7 +278,7 @@ const MataKuliahAdmin = ({ currentUser }) => {
         <div className="flex items-center justify-between gap-8">
           <div className="flex items-center space-x-4 flex-shrink-0">
             <img
-              src="/src/assets/LogoIF.jpg"
+              src={LogoIF}
               alt="Logo Informatika UNPAR"
               className="h-12 w-auto"
             />

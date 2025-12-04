@@ -200,7 +200,7 @@ const AdminPage = ({ currentUser }) => {
         <div className="flex items-center justify-between gap-8">
           <div className="flex items-center space-x-4 flex-shrink-0">
             <img
-              src="/src/assets/LogoIF.jpg"
+              src={LogoIF}
               alt="Logo Informatika UNPAR"
               className="h-12 w-auto"
             />

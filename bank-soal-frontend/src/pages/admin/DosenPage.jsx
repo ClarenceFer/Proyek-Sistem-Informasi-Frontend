@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Plus, Edit, Trash2, User, Mail, Eye, EyeOff, X, LogOut, Save, AlertCircle, CheckCircle, Users, UserCheck, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import LogoIF from './assets/LogoIF.jpg';
 
 const DosenPage = () => {
   const [currentView, setCurrentView] = useState('daftar');
@@ -166,7 +167,7 @@ const Header = () => (
       <div className="flex items-center justify-between gap-8">
         <div className="flex items-center space-x-4 flex-shrink-0">
           <img
-            src="/src/assets/LogoIF.jpg"
+            src={LogoIF}
             alt="Logo Informatika UNPAR"
             className="h-12 w-auto"
           />
