@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, User, LogOut, Edit, Trash2, Save, X, Tag, Filter, AlertCircle, CheckCircle } from 'lucide-react'; // Mengganti BookOpen, Code, GraduationCap dengan Tag
 import { BrowserRouter as Router, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Menggunakan Axios untuk permintaan HTTP
-import LogoIF from "../assets/LogoIF.jpg";
+import LogoIF from "../../assets/LogoIF.jpg";
 import AuthService from '../../services/auth.service'; // Assuming this path is correct
 
 // Base URL untuk API Anda, sekarang menunjuk ke endpoint tags
