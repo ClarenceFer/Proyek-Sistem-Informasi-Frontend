@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = "https://https://hosting-backend-prosi-production.up.railway.app/api";
+const API_URL = "https://hosting-backend-prosi-production.up.railway.app/api";
 
 const RecycleBinModal = ({ 
   isOpen, 
